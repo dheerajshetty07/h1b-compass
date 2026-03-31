@@ -85,7 +85,8 @@ export function SelectionSimulator({ oflcLevels }: SelectionSimulatorProps) {
                             setSalary(val ? parseInt(val).toLocaleString() : '')
                         }}
                         placeholder="e.g., 150,000"
-                        className="input-field pl-8 text-lg"
+                        className="input-field text-lg"
+                        style={{ paddingLeft: '2.5rem' }}
                     />
                 </div>
             </div>

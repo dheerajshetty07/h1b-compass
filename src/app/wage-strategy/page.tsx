@@ -5,7 +5,7 @@
 import { useState } from 'react'
 import { WageLevelDisplay } from '@/components/WageLevelDisplay'
 import { SelectionSimulator } from '@/components/SelectionSimulator'
-import { Search, MapPin, Briefcase, AlertTriangle, CheckCircle, Info, BarChart3, Loader2 } from 'lucide-react'
+import { Search, MapPin, Briefcase, AlertTriangle, CheckCircle, Info, BarChart3, Loader2, ChevronRight, ArrowDown } from 'lucide-react'
 import { searchLocations, findLocation, type LocationInfo } from '@/lib/locations'
 
 type WorkArrangement = 'onsite' | 'hybrid' | 'remote'
@@ -53,6 +53,8 @@ interface WageData {
   }
 }
 
+type AnalysisStep = 'idle' | 'matching' | 'loading-wages' | 'done'
+
 export default function WageStrategyPage() {
   const [jobTitle, setJobTitle] = useState('')
   const [jobDescription, setJobDescription] = useState('')
@@ -65,71 +67,88 @@ export default function WageStrategyPage() {
   // Results
   const [socMatches, setSocMatches] = useState<SocMatch[]>([])
   const [wageData, setWageData] = useState<WageData | null>(null)
-  const [showResults, setShowResults] = useState(false)
-
-  // Loading states
-  const [matchingSoc, setMatchingSoc] = useState(false)
-  const [loadingWages, setLoadingWages] = useState(false)
+  const [step, setStep] = useState<AnalysisStep>('idle')
 
   const needsLocationChoice = workArrangement === 'hybrid' || workArrangement === 'remote'
   const locationSuggestions = searchLocations(locationInput)
+  const isAnalyzing = step === 'matching' || step === 'loading-wages'
 
   async function handleAnalyze() {
     if (!jobTitle) return
 
-    setShowResults(true)
-    setMatchingSoc(true)
     setSocMatches([])
     setWageData(null)
+    setStep('matching')
 
     try {
-      // 1. SOC Matching
+      // Step 1: SOC Matching
       const socRes = await fetch('/api/soc-match', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobTitle, jobDescription: jobDescription || undefined })
       })
 
+      let matches: SocMatch[] = []
       if (socRes.ok) {
         const socData = await socRes.json()
-        setSocMatches(socData.matches || [])
-        if (socData.matches?.length > 0) {
-          setSelectedSoc(socData.matches[0].socCode)
+        matches = socData.matches || []
+        setSocMatches(matches)
+
+        if (matches.length > 0) {
+          setSelectedSoc(matches[0].onetSocCode)
         }
       }
-    } catch (err) {
-      console.error('SOC match failed:', err)
-    } finally {
-      setMatchingSoc(false)
-    }
 
-    // 2. Resolve location
-    let loc = selectedLocation
-    if (!loc && locationInput) {
-      loc = findLocation(locationInput)
-    }
-    // Default to San Francisco if no location found
-    if (!loc) {
-      loc = findLocation('San Francisco, CA')
-    }
-    setSelectedLocation(loc)
+      // Step 2: Resolve location
+      let loc = selectedLocation
+      if (!loc && locationInput) {
+        loc = findLocation(locationInput)
+      }
+      if (!loc) {
+        loc = findLocation('San Francisco, CA')
+      }
+      setSelectedLocation(loc)
 
-    if (loc) {
-      setLoadingWages(true)
-      try {
+      if (loc) {
+        setStep('loading-wages')
+
+        const socCode = matches.length > 0 ? matches[0].onetSocCode : ''
         const wageRes = await fetch(
-          `/api/wages?socCode=${selectedSoc || ''}&areaCode=${loc.oewsAreaCode}&oewsAreaCode=${loc.oewsAreaCode}`
+          `/api/wages?socCode=${socCode}&areaCode=${loc.oewsAreaCode}&oewsAreaCode=${loc.oewsAreaCode}`
         )
 
         if (wageRes.ok) {
           const data = await wageRes.json()
           setWageData(data)
         }
-      } catch (err) {
-        console.error('Wage fetch failed:', err)
-      } finally {
-        setLoadingWages(false)
       }
+    } catch (err) {
+      console.error('Analysis failed:', err)
+    } finally {
+      setStep('done')
+    }
+  }
+
+  async function handleSocSelect(match: SocMatch) {
+    setSelectedSoc(match.onetSocCode)
+    setWageData(null)
+    setStep('loading-wages')
+
+    const loc = selectedLocation || findLocation(locationInput) || findLocation('San Francisco, CA')
+    if (!loc) return
+
+    try {
+      const wageRes = await fetch(
+        `/api/wages?socCode=${match.onetSocCode}&areaCode=${loc.oewsAreaCode}&oewsAreaCode=${loc.oewsAreaCode}`
+      )
+      if (wageRes.ok) {
+        const data = await wageRes.json()
+        setWageData(data)
+      }
+    } catch (err) {
+      console.error('Wage fetch failed:', err)
+    } finally {
+      setStep('done')
     }
   }
 
@@ -287,135 +306,137 @@ export default function WageStrategyPage() {
           </div>
         )}
 
-        {/* Search Button */}
+        {/* Analyze Button */}
         <button
           onClick={handleAnalyze}
-          disabled={!jobTitle || (needsLocationChoice && !areaOfEmployment)}
-          className="btn-primary w-full py-3"
+          disabled={!jobTitle || isAnalyzing || (needsLocationChoice && !areaOfEmployment)}
+          className="btn-primary w-full py-3 flex items-center justify-center gap-2"
           style={{
             opacity: !jobTitle || (needsLocationChoice && !areaOfEmployment) ? 0.5 : 1,
-            cursor: !jobTitle || (needsLocationChoice && !areaOfEmployment) ? 'not-allowed' : 'pointer'
+            cursor: !jobTitle || isAnalyzing || (needsLocationChoice && !areaOfEmployment) ? 'not-allowed' : 'pointer'
           }}
         >
-          <Search className="inline w-4 h-4 mr-2" strokeWidth={2} />
-          Analyze Wages
+          {isAnalyzing ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {step === 'matching' ? 'Matching SOC Code...' : 'Loading Wage Data...'}
+            </>
+          ) : (
+            <>
+              <Search className="w-4 h-4" strokeWidth={2} />
+              Analyze Wages
+            </>
+          )}
         </button>
       </div>
 
-      {/* Results */}
-      {showResults && (
+      {/* Results - Step Progress */}
+      {step !== 'idle' && socMatches.length > 0 && (
         <div className="space-y-8 animate-fade-in">
           {/* SOC Matching */}
           <div className="card">
-            <h2 className="section-header mb-4">
-              <CheckCircle className="w-5 h-5" strokeWidth={1.5} />
-              SOC Code Matching
-            </h2>
-
-            {matchingSoc ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
-                <span className="text-muted-foreground">Matching SOC codes...</span>
+            <div className="flex items-center gap-2 mb-4">
+              <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white ${step === 'matching' ? 'bg-primary animate-pulse' : 'bg-success'}`}>
+                {step === 'matching' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
               </div>
-            ) : socMatches.length > 0 ? (
-              <>
-                <p className="text-sm mb-4" style={{ color: 'var(--foreground-muted)' }}>
-                  Based on your job title{jobDescription && ' and description'}, here are the top matches:
-                </p>
+              <h2 className="section-header text-lg">
+                SOC Code Matching
+              </h2>
+            </div>
 
-                <div className="space-y-3">
-                  {socMatches.map((match) => (
-                    <button
-                      key={match.onetSocCode}
-                      onClick={() => setSelectedSoc(match.socCode)}
-                      className={`w-full text-left p-4 rounded-xl border transition-all ${selectedSoc === match.socCode
-                        ? 'bg-[var(--accent-bg)] border-[var(--primary)]'
-                        : 'bg-[var(--secondary)] border-[var(--border)] hover:border-[var(--border-strong)]'
-                        }`}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-mono text-sm" style={{ color: 'var(--primary)' }}>{match.socCode}</span>
-                            {selectedSoc === match.socCode && (
-                              <span
-                                className="px-1.5 py-0.5 rounded text-[10px]"
-                                style={{ background: 'var(--accent-bg)', color: 'var(--primary)' }}
-                              >
-                                SELECTED
-                              </span>
-                            )}
-                          </div>
-                          <div className="font-medium mb-1" style={{ color: 'var(--foreground)' }}>{match.title}</div>
-                          <div className="text-xs" style={{ color: 'var(--foreground-subtle)' }}>{match.whyMatched}</div>
-                        </div>
-                        <div className="text-right">
-                          <div
-                            className="text-lg font-bold"
-                            style={{
-                              color: match.confidence >= 80 ? 'var(--success)' :
-                                match.confidence >= 50 ? 'var(--warning)' : 'var(--foreground-subtle)'
-                            }}
+            <div className="space-y-3">
+              {socMatches.map((match) => (
+                <button
+                  key={match.onetSocCode}
+                  onClick={() => handleSocSelect(match)}
+                  className={`w-full text-left p-4 rounded-xl border transition-all ${selectedSoc === match.onetSocCode
+                    ? 'bg-[var(--accent-bg)] border-[var(--primary)] ring-1 ring-primary/20'
+                    : 'bg-[var(--secondary)] border-[var(--border)] hover:border-[var(--border-strong)]'
+                    }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-sm" style={{ color: 'var(--primary)' }}>{match.onetSocCode}</span>
+                        {selectedSoc === match.onetSocCode && (
+                          <span
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                            style={{ background: 'var(--accent-bg)', color: 'var(--primary)' }}
                           >
-                            {match.confidence}%
-                          </div>
-                          <div className="text-[10px]" style={{ color: 'var(--foreground-subtle)' }}>confidence</div>
-                        </div>
+                            SELECTED
+                          </span>
+                        )}
                       </div>
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Info className="inline w-5 h-5 mr-2" />
-                No SOC matches found. Try a different job title.
-              </div>
-            )}
+                      <div className="font-medium mb-1" style={{ color: 'var(--foreground)' }}>{match.title}</div>
+                      <div className="text-xs" style={{ color: 'var(--foreground-subtle)' }}>{match.whyMatched}</div>
+                    </div>
+                    <div className="text-right">
+                      <div
+                        className="text-lg font-bold"
+                        style={{
+                          color: match.confidence >= 80 ? 'var(--success)' :
+                            match.confidence >= 50 ? 'var(--warning)' : 'var(--foreground-subtle)'
+                        }}
+                      >
+                        {match.confidence}%
+                      </div>
+                      <div className="text-[10px]" style={{ color: 'var(--foreground-subtle)' }}>confidence</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Wage Comparison */}
-          {loadingWages ? (
+          {/* Wage Analysis - shown automatically or loading */}
+          {step === 'loading-wages' && (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
               <span className="text-muted-foreground">Loading wage data...</span>
             </div>
-          ) : wageData && (wageData.oflc.available || wageData.oews.available) ? (
-            <div>
-              <h2 className="section-header mb-4">
-                <BarChart3 className="w-5 h-5" strokeWidth={1.5} />
-                Wage Analysis
-              </h2>
-              <WageLevelDisplay
-                oflc={{
-                  available: wageData.oflc.available,
-                  wageYear: wageData.oflc.wageYear,
-                  levels: wageData.oflc.levels ? {
-                    level1: { hourly: wageData.oflc.levels.level1.hourly, annual: wageData.oflc.levels.level1.annual || 0 },
-                    level2: { hourly: wageData.oflc.levels.level2.hourly, annual: wageData.oflc.levels.level2.annual || 0 },
-                    level3: { hourly: wageData.oflc.levels.level3.hourly, annual: wageData.oflc.levels.level3.annual || 0 },
-                    level4: { hourly: wageData.oflc.levels.level4.hourly, annual: wageData.oflc.levels.level4.annual || 0 },
-                  } : null,
-                  sourceUrl: wageData.oflc.sourceUrl,
-                  ingestedAt: wageData.oflc.ingestedAt || new Date().toISOString()
-                }}
-                oews={{
-                  available: wageData.oews.available,
-                  year: wageData.oews.year,
-                  wages: wageData.oews.wages,
-                  employment: wageData.oews.employment,
-                  sourceUrl: wageData.oews.sourceUrl,
-                  ingestedAt: wageData.oews.ingestedAt || new Date().toISOString()
-                }}
-                socCode={selectedSoc || wageData.socCode}
-                location={wageData.location.displayName}
-              />
-            </div>
-          ) : wageData ? (
+          )}
+
+          {step === 'done' && wageData && (wageData.oflc.available || wageData.oews.available) && (
+            <>
+              <ArrowDown className="mx-auto h-6 w-6 text-muted-foreground" />
+              <div>
+                <h2 className="section-header mb-4">
+                  <BarChart3 className="w-5 h-5" strokeWidth={1.5} />
+                  Wage Analysis — {socMatches.find(m => m.onetSocCode === selectedSoc)?.title || 'Selected Role'}
+                </h2>
+                <WageLevelDisplay
+                  oflc={{
+                    available: wageData.oflc.available,
+                    wageYear: wageData.oflc.wageYear,
+                    levels: wageData.oflc.levels ? {
+                      level1: { hourly: wageData.oflc.levels.level1.hourly, annual: wageData.oflc.levels.level1.annual || 0 },
+                      level2: { hourly: wageData.oflc.levels.level2.hourly, annual: wageData.oflc.levels.level2.annual || 0 },
+                      level3: { hourly: wageData.oflc.levels.level3.hourly, annual: wageData.oflc.levels.level3.annual || 0 },
+                      level4: { hourly: wageData.oflc.levels.level4.hourly, annual: wageData.oflc.levels.level4.annual || 0 },
+                    } : null,
+                    sourceUrl: wageData.oflc.sourceUrl,
+                    ingestedAt: wageData.oflc.ingestedAt || new Date().toISOString()
+                  }}
+                  oews={{
+                    available: wageData.oews.available,
+                    year: wageData.oews.year,
+                    wages: wageData.oews.wages,
+                    employment: wageData.oews.employment,
+                    sourceUrl: wageData.oews.sourceUrl,
+                    ingestedAt: wageData.oews.ingestedAt || new Date().toISOString()
+                  }}
+                  socCode={selectedSoc || wageData.socCode}
+                  location={wageData.location.displayName}
+                />
+              </div>
+            </>
+          )}
+
+          {step === 'done' && wageData && !wageData.oflc.available && !wageData.oews.available && (
             <div className="card text-center py-8">
               <Info className="inline w-8 h-8 text-muted-foreground mb-3" />
               <p className="text-muted-foreground">
-                No wage data available for <strong>{wageData.location.displayName}</strong> / <strong>{wageData.socCode}</strong>.
+                No wage data available for <strong>{wageData.location.displayName}</strong>.
               </p>
               <p className="text-sm text-foreground-subtle mt-2">
                 Try importing official wage data via the seed script, or check{' '}
@@ -425,18 +446,21 @@ export default function WageStrategyPage() {
                 directly.
               </p>
             </div>
-          ) : null}
+          )}
 
           {/* Selection Simulator */}
-          {wageData?.oflc?.available && wageData.oflc.levels && (
-            <SelectionSimulator
-              oflcLevels={{
-                level1: wageData.oflc.levels.level1.annual,
-                level2: wageData.oflc.levels.level2.annual,
-                level3: wageData.oflc.levels.level3.annual,
-                level4: wageData.oflc.levels.level4.annual,
-              }}
-            />
+          {step === 'done' && wageData?.oflc?.available && wageData.oflc.levels && (
+            <>
+              <ArrowDown className="mx-auto h-6 w-6 text-muted-foreground" />
+              <SelectionSimulator
+                oflcLevels={{
+                  level1: wageData.oflc.levels.level1.annual,
+                  level2: wageData.oflc.levels.level2.annual,
+                  level3: wageData.oflc.levels.level3.annual,
+                  level4: wageData.oflc.levels.level4.annual,
+                }}
+              />
+            </>
           )}
 
           {/* Final Disclaimer */}
