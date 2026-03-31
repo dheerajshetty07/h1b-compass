@@ -1,36 +1,134 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# H1B Compass
 
-## Getting Started
+> Your H-1B Command Center -- Track policy changes, analyze prevailing wages, and plan your immigration strategy using verified government data.
 
-First, run the development server:
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-5-2D3748)](https://www.prisma.io/)
+[![License](https://img.shields.io/badge/license-Private-green)]()
+
+---
+
+## Features
+
+- **Policy Radar** -- Real-time tracking of Federal Register documents related to H-1B, F-1, OPT, and STEM OPT
+- **Wage Strategy** -- SOC code matching, OFLC prevailing wage lookup, BLS OEWS market wage comparison
+- **Selection Simulator** -- Visualizes the wage-based H-1B selection weight system (effective Feb 27, 2026)
+- **Resource Library** -- Curated official government links, key definitions, and FAQs
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router, Turbopack)
+- **Language:** TypeScript
+- **Database:** SQLite (dev) / PostgreSQL (production)
+- **ORM:** Prisma
+- **Styling:** Tailwind CSS v4
+- **Deployment:** Vercel / Netlify
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- npm
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/dheerajshetty07/h1b-compass.git
+cd h1b-compass
+
+# Install dependencies
+npm install
+
+# Set up the database
+npx prisma db push
+
+# Seed the database (see Data Sources below)
+npm run seed
+
+# Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Data Sources
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+All data comes from free, public government sources. No API keys required.
 
-## Learn More
+| Source | Type | URL |
+|--------|------|-----|
+| Federal Register | REST API | <https://www.federalregister.gov/api/v1> |
+| DOL FLAG (OFLC) | ZIP download | <https://flag.dol.gov/wage-data/wage-data-downloads> |
+| BLS OEWS | ZIP download | <https://www.bls.gov/oes/tables.htm> |
+| O*NET Database | ZIP download | <https://www.onetcenter.org/database.html> |
 
-To learn more about Next.js, take a look at the following resources:
+### Seeding Data
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Place the downloaded files in the following directories, then run `npm run seed`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+data/
+  onet/    -- O*NET Database ZIP (e.g., db_30_2_excel.zip)
+  oflc/    -- OFLC Wage ZIP (e.g., OFLC_Wages_2025-26.zip)
+  oews/    -- OEWS MSA ZIP (e.g., oesm24ma.zip)
+```
 
-## Deploy on Vercel
+## Available Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run start` | Start production server |
+| `npm run seed` | Run data ingestion pipeline |
+| `npm run lint` | Run ESLint |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+```
+h1b-compass/
+  src/
+    app/                  # Next.js App Router
+      api/                # API routes (policies, wages, soc-match, simulate)
+      policy-radar/       # Policy tracking page
+      wage-strategy/      # Wage analysis page
+      resources/          # Resource library page
+    components/           # React components
+    lib/                  # Shared libraries
+      ingest/             # Data ingestion modules
+  prisma/                 # Database schema
+  scripts/                # Seed and utility scripts
+  data/                   # Data files (not committed)
+```
+
+See [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) for the complete architecture reference.
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Connect your GitHub repo to Vercel
+2. Set up a managed PostgreSQL (Neon, Supabase, or PlanetScale)
+3. Add `DATABASE_URL` to Vercel environment variables
+4. Deploy -- Vercel auto-detects Next.js
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+
+```
+DATABASE_URL="postgresql://user:password@host/database?sslmode=require"
+```
+
+## Disclaimer
+
+This tool is for informational purposes only and does not constitute legal advice. Always consult a qualified immigration attorney for guidance on your specific situation.
+
+## License
+
+Private. All rights reserved.
