@@ -1,0 +1,204 @@
+// prisma/schema.prisma
+// H1B Compass Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// POLICY DOCUMENTS (Federal Register + USCIS)
+// ============================================
+
+model PolicyDocument {
+  id              String   @id @default(uuid())
+  source          String   // 'federalregister' | 'uscis_link'
+  docNumber       String?  @unique @map("doc_number")
+  title           String
+  type            String   // 'RULE' | 'PRORULE' | 'NOTICE' | 'OTHER'
+  agencyNames     String   @map("agency_names") // Stored as CSV
+  publicationDate DateTime @map("publication_date")
+  effectiveDate   DateTime? @map("effective_date")
+  status          String   // 'proposed' | 'final' | 'notice' | 'other'
+  abstract        String?
+  officialUrl     String   @map("official_url")
+  pdfUrl          String?  @map("pdf_url")
+  tags            String   // Stored as CSV
+  impactSummary   String?  @map("impact_summary") // Stored as JSON string
+  fetchedAt       DateTime @default(now()) @map("fetched_at")
+
+  // Provenance tracking
+  ingestRunId     String?  @map("ingest_run_id")
+  ingestRun       IngestRun? @relation(fields: [ingestRunId], references: [id])
+
+  @@map("policy_documents")
+  @@index([publicationDate(sort: Desc)])
+  @@index([type])
+}
+
+// ============================================
+// OCCUPATIONS (O*NET)
+// ============================================
+
+model Occupation {
+  onetSocCode   String   @id @map("onet_soc_code")
+  socCode       String   @map("soc_code")
+  title         String
+  description   String?
+  tasks         String?  // Stored as JSON string
+  sampleTitles  String?  @map("sample_titles") // Stored as JSON string
+
+  // Provenance
+  ingestRunId   String?  @map("ingest_run_id")
+  ingestRun     IngestRun? @relation(fields: [ingestRunId], references: [id])
+
+  matchIndex    SocMatchIndex[]
+
+  @@map("occupations")
+  @@index([socCode])
+}
+
+// ============================================
+// SOC MATCH INDEX (TF-IDF for matching)
+// ============================================
+
+model SocMatchIndex {
+  id           Int      @id @default(autoincrement())
+  socCode      String   @map("soc_code")
+  term         String
+  tfidfWeight  Float    @map("tfidf_weight")
+  source       String   // 'title' | 'description' | 'tasks' | 'sample_titles'
+
+  occupation   Occupation @relation(fields: [socCode], references: [onetSocCode])
+
+  @@map("soc_match_index")
+  @@index([term])
+  @@index([socCode])
+}
+
+// ============================================
+// LOCATIONS
+// ============================================
+
+model Location {
+  id           Int      @id @default(autoincrement())
+  city         String
+  state        String
+  countyFips   String?  @map("county_fips")
+  cbsaCode     String?  @map("cbsa_code")
+  oewsAreaCode String?  @map("oews_area_code")
+  displayName  String   @map("display_name")
+
+  @@map("locations")
+  @@index([city, state])
+  @@index([cbsaCode])
+}
+
+// ============================================
+// WAGES - OFLC (Prevailing Wage Levels I-IV)
+// ============================================
+
+model WagesOflc {
+  id            Int      @id @default(autoincrement())
+  socCode       String   @map("soc_code")
+  areaCode      String   @map("area_code")
+  areaType      String   @map("area_type")
+  areaName      String?  @map("area_name")
+  state         String?  @map("state")
+  wageYear      Int      @map("wage_year")
+  level1Hourly  Float?   @map("level1_hourly")
+  level1Annual  Int?     @map("level1_annual")
+  level2Hourly  Float?   @map("level2_hourly")
+  level2Annual  Int?     @map("level2_annual")
+  level3Hourly  Float?   @map("level3_hourly")
+  level3Annual  Int?     @map("level3_annual")
+  level4Hourly  Float?   @map("level4_hourly")
+  level4Annual  Int?     @map("level4_annual")
+  sourceUrl     String   @default("https://flag.dol.gov/wage-data/wage-data-downloads") @map("source_url")
+  ingestedAt    DateTime @default(now()) @map("ingested_at")
+
+  // Provenance
+  ingestRunId   String?  @map("ingest_run_id")
+  ingestRun     IngestRun? @relation(fields: [ingestRunId], references: [id])
+
+  @@map("wages_oflc")
+  @@unique([socCode, areaCode, areaType, wageYear])
+  @@index([socCode, areaCode])
+}
+
+// ============================================
+// WAGES - OEWS (BLS Market Wages)
+// ============================================
+
+model WagesOews {
+  id           Int      @id @default(autoincrement())
+  socCode      String   @map("soc_code")
+  socTitle     String?  @map("soc_title")
+  areaCode     String   @map("area_code")
+  areaTitle    String?  @map("area_title")
+  areaType     String   @default("unknown") @map("area_type")
+  year         Int
+  mean         Float?
+  p10          Float?
+  p25          Float?
+  p50          Float?
+  p75          Float?
+  p90          Float?
+  employment   Int?
+  sourceUrl    String   @default("https://www.bls.gov/oes/tables.htm") @map("source_url")
+  ingestedAt   DateTime @default(now()) @map("ingested_at")
+
+  // Provenance
+  ingestRunId  String?  @map("ingest_run_id")
+  ingestRun    IngestRun? @relation(fields: [ingestRunId], references: [id])
+
+  @@map("wages_oews")
+  @@unique([socCode, areaCode, year])
+  @@index([socCode, areaCode])
+}
+
+// ============================================
+// INGEST RUNS (Provenance Tracking)
+// ============================================
+
+model IngestRun {
+  id           String   @id @default(uuid())
+  dataset      String   // 'federal_register' | 'oflc' | 'oews' | 'onet'
+  version      String?  // e.g., "2024", "May 2024"
+  sourceUrl    String?  @map("source_url")
+  startedAt    DateTime @default(now()) @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  status       String   @default("running") // 'running' | 'success' | 'failed'
+  recordCount  Int?     @map("record_count")
+  errorMessage String?  @map("error_message")
+  checksum     String?  // Hash for change detection
+
+  // Relations
+  policyDocuments PolicyDocument[]
+  occupations     Occupation[]
+  wagesOflc       WagesOflc[]
+  wagesOews       WagesOews[]
+
+  @@map("ingest_runs")
+  @@index([dataset, startedAt(sort: Desc)])
+}
+
+// ============================================
+// DATA REFRESH LOG (Summary View)
+// ============================================
+
+model DataRefreshLog {
+  id           Int      @id @default(autoincrement())
+  dataset      String   @unique // 'federal_register' | 'oflc' | 'oews' | 'onet'
+  lastChecked  DateTime @map("last_checked")
+  lastUpdated  DateTime @map("last_updated")
+  version      String?
+  status       String   // 'success' | 'failed' | 'pending'
+  errorMessage String?  @map("error_message")
+
+  @@map("data_refresh_log")
+}
