@@ -126,39 +126,35 @@ export async function ingestOewsWages(filePath: string): Promise<{
     // Clear existing OEWS data
     await prisma.wagesOews.deleteMany({})
 
-    // Insert in batches
-    const BATCH_SIZE = 500
+    // Insert using createMany for speed (single SQL INSERT with multiple VALUES)
+    const BATCH_SIZE = 5000
     let upsertCount = 0
 
     for (let i = 0; i < wages.length; i += BATCH_SIZE) {
       const batch = wages.slice(i, i + BATCH_SIZE)
 
-      await prisma.$transaction(
-        batch.map(w =>
-          prisma.wagesOews.create({
-            data: {
-              socCode: w.socCode,
-              socTitle: w.socTitle,
-              areaCode: w.areaCode,
-              areaTitle: w.areaTitle,
-              areaType: w.areaType,
-              year: w.year,
-              mean: w.mean,
-              p10: w.p10,
-              p25: w.p25,
-              p50: w.p50,
-              p75: w.p75,
-              p90: w.p90,
-              employment: w.employment,
-              sourceUrl: 'https://www.bls.gov/oes/tables.htm',
-              ingestedAt: new Date()
-            }
-          })
-        )
-      )
+      await prisma.wagesOews.createMany({
+        data: batch.map(w => ({
+          socCode: w.socCode,
+          socTitle: w.socTitle,
+          areaCode: w.areaCode,
+          areaTitle: w.areaTitle,
+          areaType: w.areaType,
+          year: w.year,
+          mean: w.mean,
+          p10: w.p10,
+          p25: w.p25,
+          p50: w.p50,
+          p75: w.p75,
+          p90: w.p90,
+          employment: w.employment,
+          sourceUrl: 'https://www.bls.gov/oes/tables.htm',
+          ingestedAt: new Date()
+        }))
+      })
 
       upsertCount += batch.length
-      if (upsertCount % 10000 === 0) {
+      if (upsertCount % 50000 === 0) {
         console.log(`Processed ${upsertCount}/${wages.length} wage records`)
       }
     }

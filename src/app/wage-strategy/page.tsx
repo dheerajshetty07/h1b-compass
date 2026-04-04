@@ -95,7 +95,7 @@ export default function WageStrategyPage() {
         setSocMatches(matches)
 
         if (matches.length > 0) {
-          setSelectedSoc(matches[0].onetSocCode)
+          setSelectedSoc(matches[0].socCode)
         }
       }
 
@@ -112,7 +112,7 @@ export default function WageStrategyPage() {
       if (loc) {
         setStep('loading-wages')
 
-        const socCode = matches.length > 0 ? matches[0].onetSocCode : ''
+        const socCode = matches.length > 0 ? matches[0].socCode : ''
         const wageRes = await fetch(
           `/api/wages?socCode=${socCode}&areaCode=${loc.oewsAreaCode}&oewsAreaCode=${loc.oewsAreaCode}`
         )
@@ -130,7 +130,7 @@ export default function WageStrategyPage() {
   }
 
   async function handleSocSelect(match: SocMatch) {
-    setSelectedSoc(match.onetSocCode)
+    setSelectedSoc(match.socCode)
     setWageData(null)
     setStep('loading-wages')
 
@@ -139,7 +139,7 @@ export default function WageStrategyPage() {
 
     try {
       const wageRes = await fetch(
-        `/api/wages?socCode=${match.onetSocCode}&areaCode=${loc.oewsAreaCode}&oewsAreaCode=${loc.oewsAreaCode}`
+        `/api/wages?socCode=${match.socCode}&areaCode=${loc.oewsAreaCode}&oewsAreaCode=${loc.oewsAreaCode}`
       )
       if (wageRes.ok) {
         const data = await wageRes.json()
@@ -349,7 +349,7 @@ export default function WageStrategyPage() {
                 <button
                   key={match.onetSocCode}
                   onClick={() => handleSocSelect(match)}
-                  className={`w-full text-left p-4 rounded-xl border transition-all ${selectedSoc === match.onetSocCode
+                  className={`w-full text-left p-4 rounded-xl border transition-all ${selectedSoc === match.socCode
                     ? 'bg-[var(--accent-bg)] border-[var(--primary)] ring-1 ring-primary/20'
                     : 'bg-[var(--secondary)] border-[var(--border)] hover:border-[var(--border-strong)]'
                     }`}
@@ -358,7 +358,7 @@ export default function WageStrategyPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-mono text-sm" style={{ color: 'var(--primary)' }}>{match.onetSocCode}</span>
-                        {selectedSoc === match.onetSocCode && (
+                        {selectedSoc === match.socCode && (
                           <span
                             className="px-1.5 py-0.5 rounded text-[10px] font-medium"
                             style={{ background: 'var(--accent-bg)', color: 'var(--primary)' }}
@@ -402,7 +402,7 @@ export default function WageStrategyPage() {
               <div>
                 <h2 className="section-header mb-4">
                   <BarChart3 className="w-5 h-5" strokeWidth={1.5} />
-                  Wage Analysis — {socMatches.find(m => m.onetSocCode === selectedSoc)?.title || 'Selected Role'}
+                  Wage Analysis — {socMatches.find(m => m.socCode === selectedSoc)?.title || 'Selected Role'}
                 </h2>
                 <WageLevelDisplay
                   oflc={{

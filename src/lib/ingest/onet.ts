@@ -293,6 +293,6 @@ export async function seedDemoOccupations(): Promise<{
     create: { dataset: 'onet', lastChecked: new Date(), lastUpdated: new Date(), version: 'demo', status: 'success' }
   })
 
-  console.log(`✅ Seeded ${count} demo occupations with TF-IDF index`)
+  console.log(`Seeded ${count} demo occupations with TF-IDF index`)
   return { success: true, recordCount: count }
 }

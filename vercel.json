@@ -4,7 +4,10 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "regions": ["iad1"],
-  "env": {
-    "DATABASE_URL": "@database-url"
-  }
+  "crons": [
+    {
+      "path": "/api/refresh",
+      "schedule": "0 12 * * *"
+    }
+  ]
 }

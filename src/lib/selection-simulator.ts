@@ -117,7 +117,7 @@ export function simulateSelection(
         poolDistribution: normalizedDist,
         poolTotalEntries: Math.round(totalWeightedEntries),
         levelWeights,
-        disclaimer: `⚠️ SCENARIO-BASED ANALYSIS ONLY: This shows relative selection weights based on the ` +
+        disclaimer: `SCENARIO-BASED ANALYSIS ONLY: This shows relative selection weights based on the ` +
             `proposed wage-based selection rule (effective Feb 27, 2026). Actual selection depends on ` +
             `many factors including total registrations, exemptions, and USCIS procedures. ` +
             `Higher wage level = more entries in the selection pool. This is NOT a prediction of odds ` +

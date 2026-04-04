@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
             effectiveDate: result.effectiveDate,
 
             // Make it VERY clear this is not odds
-            warning: '⚠️ IMPORTANT: This shows RELATIVE SELECTION WEIGHTS, not probabilities. ' +
+            warning: 'IMPORTANT: This shows RELATIVE SELECTION WEIGHTS, not probabilities. ' +
                 'A "2x weight" means twice as many entries in the pool, NOT twice the chance of selection. ' +
                 'Actual outcomes depend on total applicants and many other factors.',
 

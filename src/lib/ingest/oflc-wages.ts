@@ -146,40 +146,36 @@ export async function ingestOflcWages(filePath: string): Promise<{
     // Clear existing OFLC data
     await prisma.wagesOflc.deleteMany({})
 
-    // Insert in batches
-    const BATCH_SIZE = 500
+    // Insert using createMany for speed (single SQL INSERT with multiple VALUES)
+    const BATCH_SIZE = 5000
     let upsertCount = 0
 
     for (let i = 0; i < wages.length; i += BATCH_SIZE) {
       const batch = wages.slice(i, i + BATCH_SIZE)
 
-      await prisma.$transaction(
-        batch.map(w =>
-          prisma.wagesOflc.create({
-            data: {
-              socCode: w.socCode,
-              areaCode: w.areaCode,
-              areaType: w.areaType,
-              areaName: w.areaName,
-              state: w.state,
-              wageYear: w.wageYear,
-              level1Hourly: w.level1Hourly,
-              level1Annual: w.level1Annual,
-              level2Hourly: w.level2Hourly,
-              level2Annual: w.level2Annual,
-              level3Hourly: w.level3Hourly,
-              level3Annual: w.level3Annual,
-              level4Hourly: w.level4Hourly,
-              level4Annual: w.level4Annual,
-              sourceUrl: 'https://flag.dol.gov/wage-data/wage-data-downloads',
-              ingestedAt: new Date()
-            }
-          })
-        )
-      )
+      await prisma.wagesOflc.createMany({
+        data: batch.map(w => ({
+          socCode: w.socCode,
+          areaCode: w.areaCode,
+          areaType: w.areaType,
+          areaName: w.areaName,
+          state: w.state,
+          wageYear: w.wageYear,
+          level1Hourly: w.level1Hourly,
+          level1Annual: w.level1Annual,
+          level2Hourly: w.level2Hourly,
+          level2Annual: w.level2Annual,
+          level3Hourly: w.level3Hourly,
+          level3Annual: w.level3Annual,
+          level4Hourly: w.level4Hourly,
+          level4Annual: w.level4Annual,
+          sourceUrl: 'https://flag.dol.gov/wage-data/wage-data-downloads',
+          ingestedAt: new Date()
+        }))
+      })
 
       upsertCount += batch.length
-      if (upsertCount % 5000 === 0) {
+      if (upsertCount % 50000 === 0) {
         console.log(`Processed ${upsertCount}/${wages.length} wage records`)
       }
     }

@@ -76,30 +76,30 @@ function generateImpactSummary(doc: FRDocument): { bullets: string[] } {
 
     // Rule type context
     if (doc.type === 'PRORULE') {
-        bullets.push('📋 This is a PROPOSED rule - not yet in effect. Public comments may be accepted.')
+        bullets.push('This is a PROPOSED rule - not yet in effect. Public comments may be accepted.')
     } else if (doc.type === 'RULE') {
-        bullets.push('✅ This is a FINAL rule - will take effect on the effective date.')
+        bullets.push('This is a FINAL rule - will take effect on the effective date.')
     }
 
     // Effective date
     if (doc.effective_on) {
-        bullets.push(`📅 Effective date: ${doc.effective_on}`)
+        bullets.push(`Effective date: ${doc.effective_on}`)
     }
 
     // Topic-specific summaries
     if (text.includes('selection') || text.includes('lottery')) {
-        bullets.push('🎯 Affects H-1B selection/lottery process - may impact registration strategy.')
+        bullets.push('Affects H-1B selection/lottery process - may impact registration strategy.')
     }
     if (text.includes('wage') && (text.includes('level') || text.includes('prevailing'))) {
-        bullets.push('💰 Wage-related changes - may affect prevailing wage requirements.')
+        bullets.push('Wage-related changes - may affect prevailing wage requirements.')
     }
     if (text.includes('stem') && text.includes('opt')) {
-        bullets.push('🎓 STEM OPT related - impacts 24-month extension eligibility or requirements.')
+        bullets.push('STEM OPT related - impacts 24-month extension eligibility or requirements.')
     }
 
     // Ensure at least one bullet
     if (bullets.length === 0) {
-        bullets.push(`📄 ${doc.type === 'NOTICE' ? 'Notice' : 'Rule'} published by ${agencyNames.join(', ') || 'Unknown Agency'}`)
+        bullets.push(`${doc.type === 'NOTICE' ? 'Notice' : 'Rule'} published by ${agencyNames.join(', ') || 'Unknown Agency'}`)
     }
 
     return { bullets: bullets.slice(0, 3) } // Max 3 bullets
