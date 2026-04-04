@@ -45,7 +45,7 @@ const OFFICIAL_LINKS = [
             },
             {
                 title: 'Wage Data Downloads',
-                url: 'https://flag.dol.gov/wage-data/oefc-wage-data-downloads',
+                url: 'https://flag.dol.gov/wage-data/wage-data-downloads',
                 description: 'Download prevailing wage datasets'
             },
             {
@@ -144,15 +144,15 @@ const DEFINITIONS = [
 
 export default function ResourcesPage() {
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 px-4">
             {/* Header */}
             <div>
-                <h1 className="section-header text-3xl mb-2">
-                    <BookOpen className="w-8 h-8" strokeWidth={1.5} />
+                <h1 className="section-header text-2xl sm:text-3xl mb-2">
+                    <BookOpen className="w-6 h-6 sm:w-8 sm:h-8" strokeWidth={1.5} />
                     Resource Library
                 </h1>
-                <p style={{ color: 'var(--foreground-muted)' }}>
-                    Curated official links, key definitions, and important disclaimers.
+                <p className="text-sm sm:text-base text-muted-foreground">
+                    Official government resources, key definitions, and frequently asked questions.
                 </p>
             </div>
 

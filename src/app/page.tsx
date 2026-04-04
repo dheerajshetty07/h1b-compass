@@ -143,17 +143,17 @@ export default function HomePage() {
   return (
     <div className="space-y-8">
       {/* Hero */}
-      <div className="text-center py-8">
-        <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight text-foreground">
+      <div className="text-center py-6 sm:py-8 px-4">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 tracking-tight text-foreground">
           Your H-1B <span className="text-primary">Command Center</span>
         </h1>
-        <p className="text-lg max-w-2xl mx-auto text-muted-foreground">
+        <p className="text-base sm:text-lg max-w-2xl mx-auto text-muted-foreground">
           Track policy changes, analyze prevailing wages, and plan your immigration strategy—all from verified government sources.
         </p>
       </div>
 
       {/* Stage Selector */}
-      <div className="flex flex-wrap justify-center gap-2">
+      <div className="flex flex-wrap justify-center gap-2 px-4">
         {Object.keys(STAGE_CHECKLISTS).map(stage => (
           <button
             key={stage}
@@ -166,7 +166,7 @@ export default function HomePage() {
       </div>
 
       {/* Main Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid lg:grid-cols-3 gap-6 px-4">
         {/* Policy Feed */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">

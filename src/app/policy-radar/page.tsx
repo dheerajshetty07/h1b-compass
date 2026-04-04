@@ -53,21 +53,21 @@ export default function PolicyRadarPage() {
     }, [typeFilter, tagFilter, searchQuery])
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8 px-4">
             {/* Header */}
             <div>
-                <h1 className="section-header text-3xl mb-2 text-foreground">
-                    <Radar className="w-8 h-8 text-primary" strokeWidth={1.5} />
+                <h1 className="section-header text-2xl sm:text-3xl mb-2 text-foreground">
+                    <Radar className="w-6 h-6 sm:w-8 sm:h-8 text-primary" strokeWidth={1.5} />
                     Policy Radar
                 </h1>
-                <p className="text-muted-foreground">
+                <p className="text-sm sm:text-base text-muted-foreground">
                     Track official policy changes from the Federal Register.
                 </p>
             </div>
 
             {/* Filters */}
             <div className="card">
-                <div className="flex flex-col lg:flex-row gap-4">
+                <div className="flex flex-col gap-4">
                     <div className="flex-1 relative">
                         <Search
                             className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-subtle pointer-events-none"
@@ -83,9 +83,9 @@ export default function PolicyRadarPage() {
                         />
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <Filter className="w-4 h-4 text-foreground-subtle" strokeWidth={2} />
-                        <div className="flex gap-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Filter className="w-4 h-4 text-foreground-subtle flex-shrink-0" strokeWidth={2} />
+                        <div className="flex gap-1 flex-wrap">
                             {[
                                 { value: 'all', label: 'All' },
                                 { value: 'RULE', label: 'Final' },
@@ -131,7 +131,7 @@ export default function PolicyRadarPage() {
             </div>
 
             {/* Results count */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <p className="text-sm text-muted-foreground">
                     Showing {policies.length} documents
                 </p>

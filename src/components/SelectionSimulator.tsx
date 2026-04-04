@@ -115,19 +115,19 @@ export function SelectionSimulator({ oflcLevels }: SelectionSimulatorProps) {
                     return (
                         <div
                             key={item.level}
-                            className={`p-4 rounded-xl border transition-all ${isActive ? 'bg-card border-2' : 'bg-secondary border'}`}
+                            className={`p-3 sm:p-4 rounded-xl border transition-all ${isActive ? 'bg-card border-2' : 'bg-secondary border'}`}
                             style={{
                                 borderColor: isActive ? (item.level === 3 ? '#8B5CF6' : item.level === 4 ? 'var(--success)' : item.level === 2 ? 'var(--primary)' : 'var(--border)') : 'var(--border)'
                             }}
                         >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
                                     {/* Weight indicator */}
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-0.5 sm:gap-1 flex-shrink-0">
                                         {[...Array(4)].map((_, i) => (
                                             <div
                                                 key={i}
-                                                className="w-2.5 h-8 rounded-sm transition-colors"
+                                                className="w-2 sm:w-2.5 h-6 sm:h-8 rounded-sm transition-colors"
                                                 style={{
                                                     background: i < item.entries ? (item.level === 3 ? '#8B5CF6' : item.level === 4 ? 'var(--success)' : item.level === 2 ? 'var(--primary)' : 'var(--foreground-subtle)') : 'var(--border)'
                                                 }}
@@ -135,9 +135,9 @@ export function SelectionSimulator({ oflcLevels }: SelectionSimulatorProps) {
                                         ))}
                                     </div>
 
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <span className={`font-medium ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                            <span className={`font-medium text-sm sm:text-base ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
                                                 {item.label}
                                             </span>
                                             <span className="text-xs text-foreground-subtle">
@@ -145,7 +145,7 @@ export function SelectionSimulator({ oflcLevels }: SelectionSimulatorProps) {
                                             </span>
                                             {isActive && (
                                                 <span
-                                                    className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                                                    className="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium text-white"
                                                     style={{
                                                         background: item.level === 3 ? '#8B5CF6' : item.level === 4 ? 'var(--success)' : item.level === 2 ? 'var(--primary)' : 'var(--foreground-subtle)'
                                                     }}
@@ -154,20 +154,20 @@ export function SelectionSimulator({ oflcLevels }: SelectionSimulatorProps) {
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="text-sm mt-0.5 text-foreground-subtle">
+                                        <div className="text-xs sm:text-sm mt-0.5 text-foreground-subtle truncate">
                                             ≥ {formatCurrency(item.threshold)}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="text-right">
+                                <div className="text-right flex-shrink-0">
                                     <div
-                                        className="text-2xl font-bold"
+                                        className="text-xl sm:text-2xl font-bold"
                                         style={{ color: isActive ? (item.level === 3 ? '#8B5CF6' : item.level === 4 ? 'var(--success)' : item.level === 2 ? 'var(--primary)' : 'var(--foreground-muted)') : 'var(--foreground-muted)' }}
                                     >
                                         {item.entries}×
                                     </div>
-                                    <div className="text-xs text-foreground-subtle">entries</div>
+                                    <div className="text-[10px] sm:text-xs text-foreground-subtle">entries</div>
                                 </div>
                             </div>
                         </div>

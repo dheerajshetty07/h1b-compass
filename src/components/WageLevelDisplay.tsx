@@ -146,7 +146,7 @@ export function WageLevelDisplay({ oflc, oews, socCode, location }: WageLevelDis
                             </div>
 
                             {/* Percentile bars */}
-                            <div className="space-y-2">
+                            <div className="space-y-1.5 sm:space-y-2">
                                 {[
                                     { label: '10th', value: oews.wages.p10, width: '20%' },
                                     { label: '25th', value: oews.wages.p25, width: '35%' },
@@ -154,15 +154,15 @@ export function WageLevelDisplay({ oflc, oews, socCode, location }: WageLevelDis
                                     { label: '75th', value: oews.wages.p75, width: '70%' },
                                     { label: '90th', value: oews.wages.p90, width: '90%' }
                                 ].map(p => (
-                                    <div key={p.label} className="flex items-center gap-3">
-                                        <span className="w-24 text-xs text-muted-foreground">{p.label}</span>
-                                        <div className="flex-1 h-2 rounded-full bg-border">
+                                    <div key={p.label} className="flex items-center gap-1.5 sm:gap-3">
+                                        <span className="w-16 sm:w-24 text-[10px] sm:text-xs text-muted-foreground flex-shrink-0">{p.label}</span>
+                                        <div className="flex-1 h-1.5 sm:h-2 rounded-full bg-border">
                                             <div
                                                 className="h-full rounded-full bg-primary"
                                                 style={{ width: p.width }}
                                             />
                                         </div>
-                                        <span className="w-20 text-right text-xs font-medium text-foreground">
+                                        <span className="w-16 sm:w-20 text-right text-[10px] sm:text-xs font-medium text-foreground flex-shrink-0">
                                             {formatCurrency(p.value)}
                                         </span>
                                     </div>

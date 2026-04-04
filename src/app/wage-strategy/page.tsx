@@ -153,14 +153,14 @@ export default function WageStrategyPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8 px-4">
       {/* Header */}
       <div>
-        <h1 className="section-header text-3xl mb-2">
-          <Briefcase className="w-8 h-8" strokeWidth={1.5} />
+        <h1 className="section-header text-2xl sm:text-3xl mb-2">
+          <Briefcase className="w-6 h-6 sm:w-8 sm:h-8" strokeWidth={1.5} />
           Wage & Role Strategy
         </h1>
-        <p style={{ color: 'var(--foreground-muted)' }}>
+        <p className="text-sm sm:text-base" style={{ color: 'var(--foreground-muted)' }}>
           Map your job to an SOC code, compare prevailing vs. market wages, and understand selection weights.
         </p>
       </div>
@@ -196,7 +196,7 @@ export default function WageStrategyPage() {
           />
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid sm:grid-cols-2 gap-6">
           {/* Location */}
           <div className="relative">
             <label className="block text-sm font-medium mb-2" style={{ color: 'var(--foreground)' }}>
