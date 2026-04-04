@@ -124,8 +124,7 @@ export async function matchSoc(
         where: {
             term: { in: queryTerms }
         },
-        select: { socCode: true },
-        distinct: ['socCode']
+        select: { socCode: true }
     })
 
     const uniqueSocCodes = [...new Set(socCodes.map(s => s.socCode))]
