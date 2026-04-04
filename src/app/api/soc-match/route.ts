@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
                 onetSocCode: m.onetSocCode,
                 title: m.title,
                 description: m.description,
-                confidence: Math.round(m.confidence * 100), // Convert to percentage
+                confidence: m.confidence,
                 matchedKeywords: m.matchedKeywords,
                 matchSource: m.matchSource,
                 // Explainability
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
             socCode: m.socCode,
             onetSocCode: m.onetSocCode,
             title: m.title,
-            confidence: Math.round(m.confidence * 100),
+            confidence: m.confidence,
             matchedKeywords: m.matchedKeywords,
             whyMatched: `Matched on: ${m.matchedKeywords.slice(0, 3).join(', ')}`
         })),

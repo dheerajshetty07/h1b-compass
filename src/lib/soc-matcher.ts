@@ -1,5 +1,5 @@
 // src/lib/soc-matcher.ts
-// SOC Matching Engine with TF-IDF based explainable matching
+// SOC Matching Engine - Title-first matching with TF-IDF fallback
 // Returns top-3 matches with confidence scores and "why matched" keywords
 
 import { prisma } from './db'
@@ -9,9 +9,9 @@ interface SocMatch {
     onetSocCode: string
     title: string
     description: string | null
-    confidence: number // 0-1 score
-    matchedKeywords: string[] // Explainability: which terms matched
-    matchSource: 'title' | 'description' | 'tasks' | 'sample_titles' | 'mixed'
+    confidence: number // 0-100 percentage
+    matchedKeywords: string[]
+    matchSource: 'title' | 'sample_title' | 'description' | 'tasks'
 }
 
 // Stopwords to filter out
@@ -34,105 +34,34 @@ function tokenize(text: string): string[] {
         .filter(word => word.length > 2 && !STOPWORDS.has(word))
 }
 
-// Calculate TF-IDF similarity between query terms and indexed terms
-async function calculateSimilarity(
-    queryTerms: string[],
-    socCode: string
-): Promise<{ score: number, matchedTerms: string[], source: string }> {
-    // Get all indexed terms for this SOC
-    const indexedTerms = await prisma.socMatchIndex.findMany({
-        where: { socCode },
-        select: { term: true, tfidfWeight: true, source: true }
-    })
+// Simple string similarity using Jaro-Winkler-like approach
+// Returns 0-1 where 1 is exact match
+function stringSimilarity(a: string, b: string): number {
+    const sa = a.toLowerCase().trim()
+    const sb = b.toLowerCase().trim()
 
-    if (indexedTerms.length === 0) {
-        return { score: 0, matchedTerms: [], source: 'none' }
+    if (sa === sb) return 1.0
+    if (sa.includes(sb) || sb.includes(sa)) return 0.85
+
+    // Word overlap score
+    const wordsA = sa.split(/\s+/)
+    const wordsB = sb.split(/\s+/)
+    const commonWords = wordsA.filter(w => wordsB.includes(w))
+    const wordOverlap = commonWords.length / Math.max(wordsA.length, wordsB.length)
+
+    if (wordOverlap > 0) return 0.5 + (wordOverlap * 0.35)
+
+    // Character-level similarity for short strings
+    if (sa.length < 20 && sb.length < 20) {
+        let matches = 0
+        const maxLen = Math.max(sa.length, sb.length)
+        for (let i = 0; i < Math.min(sa.length, sb.length); i++) {
+            if (sa[i] === sb[i]) matches++
+        }
+        return matches / maxLen
     }
 
-    // Build term-weight map, keeping the highest weight per term per source
-    const titleTerms = new Set<string>()
-    const descTerms = new Set<string>()
-    const taskTerms = new Set<string>()
-    const sampleTitleTerms = new Set<string>()
-
-    for (const t of indexedTerms) {
-        switch (t.source) {
-            case 'title': titleTerms.add(t.term); break
-            case 'description': descTerms.add(t.term); break
-            case 'tasks': taskTerms.add(t.term); break
-            case 'sample_titles': sampleTitleTerms.add(t.term); break
-        }
-    }
-
-    // Calculate match score with source-based weighting
-    let totalScore = 0
-    const matchedTerms: string[] = []
-    const sourceCounts: Record<string, number> = {}
-
-    for (const queryTerm of queryTerms) {
-        let termScore = 0
-        let bestSource = 'none'
-
-        // Title match (highest priority)
-        if (titleTerms.has(queryTerm)) {
-            termScore = Math.max(termScore, 1.0)
-            bestSource = 'title'
-        }
-        // Sample title match
-        if (sampleTitleTerms.has(queryTerm)) {
-            termScore = Math.max(termScore, 0.9)
-            bestSource = bestSource === 'none' ? 'sample_titles' : bestSource
-        }
-        // Description match
-        if (descTerms.has(queryTerm)) {
-            termScore = Math.max(termScore, 0.5)
-            bestSource = bestSource === 'none' ? 'description' : bestSource
-        }
-        // Task match
-        if (taskTerms.has(queryTerm)) {
-            termScore = Math.max(termScore, 0.4)
-            bestSource = bestSource === 'none' ? 'tasks' : bestSource
-        }
-
-        // Prefix match (low priority, only if no exact match)
-        if (termScore === 0) {
-            const allTerms = [...titleTerms, ...sampleTitleTerms, ...descTerms, ...taskTerms]
-            for (const term of allTerms) {
-                if (term.startsWith(queryTerm) || queryTerm.startsWith(term)) {
-                    // Only match if the query term is at least 4 chars to avoid "engine" matching "engineer"
-                    if (queryTerm.length >= 4 || term === queryTerm) {
-                        termScore = 0.15
-                        bestSource = titleTerms.has(term) ? 'title' : sampleTitleTerms.has(term) ? 'sample_titles' : 'mixed'
-                        if (!matchedTerms.includes(term)) {
-                            matchedTerms.push(term)
-                        }
-                        break
-                    }
-                }
-            }
-        }
-
-        if (termScore > 0) {
-            totalScore += termScore
-            sourceCounts[bestSource] = (sourceCounts[bestSource] || 0) + 1
-            if (!matchedTerms.includes(queryTerm)) {
-                matchedTerms.push(queryTerm)
-            }
-        }
-    }
-
-    // Normalize score: divide by number of query terms, cap at 1
-    const normalizedScore = Math.min(totalScore / Math.max(queryTerms.length, 1), 1)
-
-    // Determine primary match source
-    const primarySource = Object.entries(sourceCounts)
-        .sort((a, b) => b[1] - a[1])[0]?.[0] || 'mixed'
-
-    return {
-        score: normalizedScore,
-        matchedTerms: matchedTerms.slice(0, 5),
-        source: primarySource
-    }
+    return 0
 }
 
 // Main SOC matching function
@@ -142,14 +71,9 @@ export async function matchSoc(
 ): Promise<{
     matches: SocMatch[]
     queryTerms: string[]
-    gated: boolean // True if confidence below threshold
+    gated: boolean
 }> {
-    // Combine and tokenize input
-    const fullText = jobDescription
-        ? `${jobTitle} ${jobDescription}`
-        : jobTitle
-
-    const queryTerms = tokenize(fullText)
+    const queryTerms = tokenize(jobTitle)
 
     if (queryTerms.length === 0) {
         return { matches: [], queryTerms: [], gated: true }
@@ -157,82 +81,142 @@ export async function matchSoc(
 
     console.log(`SOC matching for: "${jobTitle}" with ${queryTerms.length} query terms`)
 
-    // Get all unique SOC codes from index
-    const socCodes = await prisma.socMatchIndex.findMany({
-        where: {
-            term: { in: queryTerms }
-        },
-        select: { socCode: true }
+    // Fetch all occupations with their data
+    const occupations = await prisma.occupation.findMany({
+        select: {
+            onetSocCode: true,
+            socCode: true,
+            title: true,
+            description: true,
+            sampleTitles: true,
+            tasks: true
+        }
     })
 
-    const uniqueSocCodes = [...new Set(socCodes.map(s => s.socCode))]
-    console.log(`Found ${uniqueSocCodes.length} candidate SOCs`)
+    console.log(`Loaded ${occupations.length} occupations for matching`)
 
-    // Calculate similarity for each candidate
-    const results: SocMatch[] = []
-    const candidateCodes: string[] = []
+    // Score each occupation
+    const scored: { occ: typeof occupations[0], score: number, source: SocMatch['matchSource'], keywords: string[] }[] = []
 
-    for (const socCode of uniqueSocCodes.slice(0, 50)) { // Limit candidates
-        const { score, matchedTerms, source } = await calculateSimilarity(queryTerms, socCode)
+    for (const occ of occupations) {
+        let bestScore = 0
+        let bestSource: SocMatch['matchSource'] = 'description'
+        const matchedKeywords: string[] = []
 
-        if (score > 0.1) { // Minimum threshold
-            candidateCodes.push(socCode)
-            results.push({
-                socCode,
-                onetSocCode: socCode,
-                title: '',
-                description: null,
-                confidence: score,
-                matchedKeywords: matchedTerms,
-                matchSource: source as SocMatch['matchSource']
-            })
+        // 1. Direct title match (highest priority)
+        const titleSim = stringSimilarity(jobTitle, occ.title)
+        if (titleSim > bestScore) {
+            bestScore = titleSim
+            bestSource = 'title'
+        }
+
+        // Check if query terms appear in title
+        const titleLower = occ.title.toLowerCase()
+        for (const term of queryTerms) {
+            if (titleLower.includes(term)) {
+                if (!matchedKeywords.includes(term)) matchedKeywords.push(term)
+                if (bestScore < 0.7) {
+                    bestScore = Math.max(bestScore, 0.7)
+                    bestSource = 'title'
+                }
+            }
+        }
+
+        // 2. Sample/alternate title match
+        if (occ.sampleTitles) {
+            try {
+                const sampleTitles: string[] = JSON.parse(occ.sampleTitles)
+                for (const sampleTitle of sampleTitles) {
+                    const sampleSim = stringSimilarity(jobTitle, sampleTitle)
+                    if (sampleSim > bestScore) {
+                        bestScore = sampleSim
+                        bestSource = 'sample_title'
+                    }
+                    // Check term overlap
+                    const sampleLower = sampleTitle.toLowerCase()
+                    for (const term of queryTerms) {
+                        if (sampleLower.includes(term) && !matchedKeywords.includes(term)) {
+                            matchedKeywords.push(term)
+                        }
+                    }
+                }
+            } catch { /* ignore parse errors */ }
+        }
+
+        // 3. Description match (lower priority)
+        if (bestScore < 0.5 && occ.description) {
+            const descLower = occ.description.toLowerCase()
+            let descMatches = 0
+            for (const term of queryTerms) {
+                if (descLower.includes(term)) {
+                    descMatches++
+                    if (!matchedKeywords.includes(term)) matchedKeywords.push(term)
+                }
+            }
+            if (descMatches > 0) {
+                const descScore = (descMatches / queryTerms.length) * 0.4
+                if (descScore > bestScore) {
+                    bestScore = descScore
+                    bestSource = 'description'
+                }
+            }
+        }
+
+        // 4. Tasks match (lowest priority)
+        if (bestScore < 0.3 && occ.tasks) {
+            try {
+                const tasks: string[] = JSON.parse(occ.tasks)
+                const tasksText = tasks.join(' ').toLowerCase()
+                let taskMatches = 0
+                for (const term of queryTerms) {
+                    if (tasksText.includes(term)) {
+                        taskMatches++
+                        if (!matchedKeywords.includes(term)) matchedKeywords.push(term)
+                    }
+                }
+                if (taskMatches > 0) {
+                    const taskScore = (taskMatches / queryTerms.length) * 0.25
+                    if (taskScore > bestScore) {
+                        bestScore = taskScore
+                        bestSource = 'tasks'
+                    }
+                }
+            } catch { /* ignore parse errors */ }
+        }
+
+        if (bestScore > 0.15) {
+            scored.push({ occ, score: bestScore, source: bestSource, keywords: matchedKeywords })
         }
     }
 
-    // Batch fetch all occupations in a single query
-    const occupations = await prisma.occupation.findMany({
-        where: { onetSocCode: { in: candidateCodes } },
-        select: { title: true, description: true, onetSocCode: true, socCode: true }
-    })
+    // Sort by score descending
+    scored.sort((a, b) => b.score - a.score)
 
-    const occMap = new Map(occupations.map(o => [o.onetSocCode, o]))
+    // Take top 3
+    const top3 = scored.slice(0, 3)
 
-    // Enrich results with occupation data
-    const enrichedResults = results
-        .map(r => {
-            const occ = occMap.get(r.onetSocCode)
-            if (!occ) return null
-            return {
-                socCode: occ.socCode,
-                onetSocCode: occ.onetSocCode,
-                title: occ.title,
-                description: occ.description,
-                confidence: r.confidence,
-                matchedKeywords: r.matchedKeywords,
-                matchSource: r.matchSource
-            }
-        })
-        .filter(Boolean) as SocMatch[]
+    const matches: SocMatch[] = top3.map(s => ({
+        socCode: s.occ.socCode,
+        onetSocCode: s.occ.onetSocCode,
+        title: s.occ.title,
+        description: s.occ.description,
+        confidence: Math.round(s.score * 100),
+        matchedKeywords: s.keywords.slice(0, 5),
+        matchSource: s.source
+    }))
 
-    // Sort by confidence and take top 3
-    enrichedResults.sort((a, b) => b.confidence - a.confidence)
-    const top3 = enrichedResults.slice(0, 3)
-
-    // Gate if top match confidence < 0.3 (30%)
-    const gated = top3.length === 0 || top3[0].confidence < 0.3
+    const gated = matches.length === 0 || matches[0].confidence < 25
 
     if (gated) {
         console.log('SOC matching gated: low confidence or no matches')
     }
 
-    return {
-        matches: top3,
-        queryTerms,
-        gated
-    }
+    console.log(`Top match: ${matches[0]?.title || 'none'} (${matches[0]?.confidence}%)`)
+
+    return { matches, queryTerms, gated }
 }
 
-// Build TF-IDF index for an occupation
+// Build TF-IDF index for an occupation (kept for backward compatibility)
 export async function buildSocIndex(
     onetSocCode: string,
     title: string,
@@ -258,42 +242,29 @@ export async function buildSocIndex(
         }
     }
 
-    // Index title with high weight
+    // Add terms from different sources with different weights
     addTerms(title, 'title')
-    addTerms(title, 'title') // Double-count title terms
+    if (description) addTerms(description, 'description')
+    if (tasks) addTerms(tasks.join(' '), 'tasks')
+    if (sampleTitles) addTerms(sampleTitles.join(' '), 'sample_titles')
 
-    // Index description
-    if (description) {
-        addTerms(description, 'description')
-    }
-
-    // Index tasks
-    if (tasks && Array.isArray(tasks)) {
-        for (const task of tasks) {
-            addTerms(task, 'tasks')
-        }
-    }
-
-    // Index sample titles
-    if (sampleTitles && Array.isArray(sampleTitles)) {
-        for (const sampleTitle of sampleTitles) {
-            addTerms(sampleTitle, 'sample_titles')
-        }
-    }
-
-    // Calculate TF-IDF weights and insert
-    const totalTerms = Array.from(termFreq.values()).reduce((sum, t) => sum + t.count, 0)
-
-    const indexEntries = Array.from(termFreq.entries()).map(([term, { count, source }]) => ({
-        socCode: onetSocCode,
-        term,
-        // TF component (log-scaled)
-        tfidfWeight: (1 + Math.log(count)) / Math.log(totalTerms + 1),
-        source
-    }))
-
-    // Batch insert
-    await prisma.socMatchIndex.createMany({
-        data: indexEntries
+    // Calculate TF-IDF weights
+    const totalTerms = termFreq.size
+    const entries = Array.from(termFreq.entries()).map(([term, { count, source }]) => {
+        const tf = count / Math.max(tokenize(title + ' ' + (description || '')).length, 1)
+        const idf = Math.log(totalTerms / Math.max(count, 1))
+        return { term, tfidfWeight: tf * idf, source }
     })
+
+    // Insert index entries
+    if (entries.length > 0) {
+        await prisma.socMatchIndex.createMany({
+            data: entries.map(e => ({
+                socCode: onetSocCode,
+                term: e.term,
+                tfidfWeight: e.tfidfWeight,
+                source: e.source
+            }))
+        })
+    }
 }
