@@ -49,41 +49,79 @@ async function calculateSimilarity(
         return { score: 0, matchedTerms: [], source: 'none' }
     }
 
-    // Build term-weight map
-    const termWeights = new Map<string, { weight: number, source: string }>()
+    // Build term-weight map, keeping the highest weight per term per source
+    const titleTerms = new Set<string>()
+    const descTerms = new Set<string>()
+    const taskTerms = new Set<string>()
+    const sampleTitleTerms = new Set<string>()
+
     for (const t of indexedTerms) {
-        if (!termWeights.has(t.term) || termWeights.get(t.term)!.weight < t.tfidfWeight) {
-            termWeights.set(t.term, { weight: t.tfidfWeight, source: t.source })
+        switch (t.source) {
+            case 'title': titleTerms.add(t.term); break
+            case 'description': descTerms.add(t.term); break
+            case 'tasks': taskTerms.add(t.term); break
+            case 'sample_titles': sampleTitleTerms.add(t.term); break
         }
     }
 
-    // Calculate match score
+    // Calculate match score with source-based weighting
     let totalScore = 0
     const matchedTerms: string[] = []
     const sourceCounts: Record<string, number> = {}
 
     for (const queryTerm of queryTerms) {
-        // Exact match
-        if (termWeights.has(queryTerm)) {
-            const { weight, source } = termWeights.get(queryTerm)!
-            totalScore += weight
-            matchedTerms.push(queryTerm)
-            sourceCounts[source] = (sourceCounts[source] || 0) + 1
+        let termScore = 0
+        let bestSource = 'none'
+
+        // Title match (highest priority)
+        if (titleTerms.has(queryTerm)) {
+            termScore = Math.max(termScore, 1.0)
+            bestSource = 'title'
+        }
+        // Sample title match
+        if (sampleTitleTerms.has(queryTerm)) {
+            termScore = Math.max(termScore, 0.9)
+            bestSource = bestSource === 'none' ? 'sample_titles' : bestSource
+        }
+        // Description match
+        if (descTerms.has(queryTerm)) {
+            termScore = Math.max(termScore, 0.5)
+            bestSource = bestSource === 'none' ? 'description' : bestSource
+        }
+        // Task match
+        if (taskTerms.has(queryTerm)) {
+            termScore = Math.max(termScore, 0.4)
+            bestSource = bestSource === 'none' ? 'tasks' : bestSource
         }
 
-        // Prefix match for partial terms
-        for (const [term, { weight, source }] of termWeights) {
-            if (term.startsWith(queryTerm) || queryTerm.startsWith(term)) {
-                if (!matchedTerms.includes(term)) {
-                    totalScore += weight * 0.5 // Partial match weight
-                    matchedTerms.push(term)
-                    sourceCounts[source] = (sourceCounts[source] || 0) + 0.5
+        // Prefix match (low priority, only if no exact match)
+        if (termScore === 0) {
+            const allTerms = [...titleTerms, ...sampleTitleTerms, ...descTerms, ...taskTerms]
+            for (const term of allTerms) {
+                if (term.startsWith(queryTerm) || queryTerm.startsWith(term)) {
+                    // Only match if the query term is at least 4 chars to avoid "engine" matching "engineer"
+                    if (queryTerm.length >= 4 || term === queryTerm) {
+                        termScore = 0.15
+                        bestSource = titleTerms.has(term) ? 'title' : sampleTitleTerms.has(term) ? 'sample_titles' : 'mixed'
+                        if (!matchedTerms.includes(term)) {
+                            matchedTerms.push(term)
+                        }
+                        break
+                    }
                 }
+            }
+        }
+
+        if (termScore > 0) {
+            totalScore += termScore
+            sourceCounts[bestSource] = (sourceCounts[bestSource] || 0) + 1
+            if (!matchedTerms.includes(queryTerm)) {
+                matchedTerms.push(queryTerm)
             }
         }
     }
 
-    // Normalize score
+    // Normalize score: divide by number of query terms, cap at 1
     const normalizedScore = Math.min(totalScore / Math.max(queryTerms.length, 1), 1)
 
     // Determine primary match source
@@ -92,7 +130,7 @@ async function calculateSimilarity(
 
     return {
         score: normalizedScore,
-        matchedTerms: matchedTerms.slice(0, 5), // Limit to top 5 terms
+        matchedTerms: matchedTerms.slice(0, 5),
         source: primarySource
     }
 }
