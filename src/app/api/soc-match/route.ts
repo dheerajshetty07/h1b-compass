@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { matchSoc } from '@/lib/soc-matcher'
+import { prisma } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
     try {
@@ -56,4 +57,46 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         )
     }
+}
+
+// GET handler for testing in browser
+export async function GET(request: NextRequest) {
+    const searchParams = request.nextUrl.searchParams
+    const jobTitle = searchParams.get('q') || searchParams.get('title')
+
+    if (!jobTitle) {
+        // Return DB stats for debugging
+        const occCount = await prisma.occupation.count()
+        const indexCount = await prisma.socMatchIndex.count()
+        const sampleTerms = await prisma.socMatchIndex.findMany({
+            take: 10,
+            select: { term: true, socCode: true, tfidfWeight: true }
+        })
+
+        return NextResponse.json({
+            message: 'Send a POST request with { jobTitle } to get SOC matches',
+            testUrl: `/api/soc-match?q=Software+Engineer`,
+            dbStats: {
+                occupations: occCount,
+                indexEntries: indexCount,
+                sampleTerms
+            }
+        })
+    }
+
+    const result = await matchSoc(jobTitle)
+
+    return NextResponse.json({
+        query: jobTitle,
+        matches: result.matches.map(m => ({
+            socCode: m.socCode,
+            onetSocCode: m.onetSocCode,
+            title: m.title,
+            confidence: Math.round(m.confidence * 100),
+            matchedKeywords: m.matchedKeywords,
+            whyMatched: `Matched on: ${m.matchedKeywords.slice(0, 3).join(', ')}`
+        })),
+        queryTerms: result.queryTerms,
+        gated: result.gated
+    })
 }
